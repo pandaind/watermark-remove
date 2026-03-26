@@ -31,8 +31,10 @@ yarn-error.log*
 # Allow test fixtures, block everything else
 *.mp4
 !tests/**/*.mp4
+!sample/**/*.mp4
 *.png
 !tests/**/*.png
+!docs/**/*.png
 !renderer/public/*.svg
 
 # ── macOS ─────────────────────────────────────────────────────────────────────
