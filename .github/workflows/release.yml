@@ -50,6 +50,8 @@ jobs:
     name: Build macOS (.dmg)
     needs: test
     runs-on: macos-latest
+    env:
+      MAC_CERT_P12: ${{ secrets.MAC_CERT_P12 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -63,7 +65,7 @@ jobs:
         run: npm ci && npm ci --prefix renderer
 
       - name: Configure code signing (only when cert secret is set)
-        if: ${{ secrets.MAC_CERT_P12 != '' }}
+        if: ${{ env.MAC_CERT_P12 != '' }}
         run: |
           echo "CSC_LINK=${{ secrets.MAC_CERT_P12 }}" >> $GITHUB_ENV
           echo "CSC_KEY_PASSWORD=${{ secrets.MAC_CERT_PASSWORD }}" >> $GITHUB_ENV
@@ -88,6 +90,8 @@ jobs:
     name: Build Windows (.exe)
     needs: test
     runs-on: windows-latest
+    env:
+      WIN_CERT_PFX: ${{ secrets.WIN_CERT_PFX }}
     steps:
       - uses: actions/checkout@v4
 
@@ -101,7 +105,7 @@ jobs:
         run: npm ci && npm ci --prefix renderer
 
       - name: Configure code signing (only when cert secret is set)
-        if: ${{ secrets.WIN_CERT_PFX != '' }}
+        if: ${{ env.WIN_CERT_PFX != '' }}
         shell: bash
         run: |
           echo "CSC_LINK=${{ secrets.WIN_CERT_PFX }}" >> $GITHUB_ENV
