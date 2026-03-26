@@ -291,7 +291,6 @@ npm run build
 
 This runs:
 1. `npm run build:renderer` — Vite bundles `renderer/src/` → `renderer/dist/`
-2. `npm run build:electron` — `tsc` compiles `electron/` (type-checks only; `.js` files are already the source)
 
 **Expected output:** No errors. `renderer/dist/` contains `index.html` and bundled assets.
 
