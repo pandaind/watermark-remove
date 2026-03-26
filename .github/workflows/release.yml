@@ -65,6 +65,8 @@ jobs:
       - name: Build & package (macOS)
         run: npm run dist -- --mac
         env:
+          # Disable auto code-signing discovery; signing only happens when secrets are set
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
           # Code-signing secrets — optional; omit to produce unsigned builds
           CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
@@ -99,6 +101,8 @@ jobs:
       - name: Build & package (Windows)
         run: npm run dist -- --win
         env:
+          # Disable auto code-signing discovery; signing only happens when secrets are set
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
           # Code-signing — optional; omit for unsigned builds (SmartScreen warning)
           CSC_LINK: ${{ secrets.WIN_CERT_PFX }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
