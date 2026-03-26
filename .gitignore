@@ -1,0 +1,47 @@
+# ── Node ──────────────────────────────────────────────────────────────────────
+node_modules/
+renderer/dist/
+dist/
+dist-electron/
+*.local
+
+# ── Electron build output ─────────────────────────────────────────────────────
+build/
+# ── Playwright ────────────────────────────────────────────────────────────────
+test-results/
+playwright-report/
+# ── Python ────────────────────────────────────────────────────────────────────
+backend/.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Temp / video processing artefacts ────────────────────────────────────────
+# Prevent accidentally committing extracted video frames or previews
+/tmp/watermark_app_*
+*.jpg
+# Allow test fixtures, block everything else
+*.mp4
+!tests/**/*.mp4
+*.png
+!tests/**/*.png
+!renderer/public/*.svg
+
+# ── macOS ─────────────────────────────────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+
+# ── Editor ────────────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.suo
+*.swp
+*.sln

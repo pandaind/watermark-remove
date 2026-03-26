@@ -1,0 +1,181 @@
+name: Release
+
+# Triggered when a version tag is pushed (e.g. v1.0.0, v1.2.3)
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  # ─────────────────────────────────────────────
+  # 1. Run all tests before building anything
+  # ─────────────────────────────────────────────
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Python dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Run Python unit tests
+        run: python -m pytest tests/unit/backend -v
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Install renderer dependencies
+        run: npm ci --prefix renderer
+
+      - name: Run renderer unit tests
+        run: npm run test:run --prefix renderer
+
+  # ─────────────────────────────────────────────
+  # 2. Build platform installers (parallel)
+  # ─────────────────────────────────────────────
+  build-mac:
+    name: Build macOS (.dmg)
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci && npm ci --prefix renderer
+
+      - name: Build & package (macOS)
+        run: npm run dist -- --mac
+        env:
+          # Code-signing secrets — optional; omit to produce unsigned builds
+          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          # Notarization — only applied when all three secrets are present
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-dmg
+          path: dist/*.dmg
+          if-no-files-found: error
+
+  build-win:
+    name: Build Windows (.exe)
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci && npm ci --prefix renderer
+
+      - name: Build & package (Windows)
+        run: npm run dist -- --win
+        env:
+          # Code-signing — optional; omit for unsigned builds (SmartScreen warning)
+          CSC_LINK: ${{ secrets.WIN_CERT_PFX }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-installer
+          path: dist/*.exe
+          if-no-files-found: error
+
+  build-linux:
+    name: Build Linux (.AppImage)
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies for electron-builder
+        run: sudo apt-get update && sudo apt-get install -y fakeroot
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci && npm ci --prefix renderer
+
+      - name: Build & package (Linux)
+        run: npm run dist -- --linux
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: dist/*.AppImage
+          if-no-files-found: error
+
+  # ─────────────────────────────────────────────
+  # 3. Publish GitHub Release with all installers
+  # ─────────────────────────────────────────────
+  publish:
+    name: Publish GitHub Release
+    needs: [build-mac, build-win, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # required to create a release
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-dmg
+          path: artifacts/mac
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: win-installer
+          path: artifacts/win
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-appimage
+          path: artifacts/linux
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Watermark Remover ${{ github.ref_name }}
+          body_path: CHANGELOG.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}  # e.g. v1.0.0-beta → prerelease
+          files: |
+            artifacts/mac/*.dmg
+            artifacts/win/*.exe
+            artifacts/linux/*.AppImage
