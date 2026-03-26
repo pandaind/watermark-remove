@@ -62,18 +62,20 @@ jobs:
       - name: Install dependencies
         run: npm ci && npm ci --prefix renderer
 
+      - name: Configure code signing (only when cert secret is set)
+        if: ${{ secrets.MAC_CERT_P12 != '' }}
+        run: |
+          echo "CSC_LINK=${{ secrets.MAC_CERT_P12 }}" >> $GITHUB_ENV
+          echo "CSC_KEY_PASSWORD=${{ secrets.MAC_CERT_PASSWORD }}" >> $GITHUB_ENV
+          echo "APPLE_ID=${{ secrets.APPLE_ID }}" >> $GITHUB_ENV
+          echo "APPLE_APP_SPECIFIC_PASSWORD=${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}" >> $GITHUB_ENV
+          echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}" >> $GITHUB_ENV
+
       - name: Build & package (macOS)
         run: npm run dist -- --mac
         env:
-          # Disable auto code-signing discovery; signing only happens when secrets are set
+          # Prevents electron-builder from searching the Keychain for signing identities
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          # Code-signing secrets — optional; omit to produce unsigned builds
-          CSC_LINK: ${{ secrets.MAC_CERT_P12 }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
-          # Notarization — only applied when all three secrets are present
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
@@ -98,14 +100,17 @@ jobs:
       - name: Install dependencies
         run: npm ci && npm ci --prefix renderer
 
+      - name: Configure code signing (only when cert secret is set)
+        if: ${{ secrets.WIN_CERT_PFX != '' }}
+        shell: bash
+        run: |
+          echo "CSC_LINK=${{ secrets.WIN_CERT_PFX }}" >> $GITHUB_ENV
+          echo "CSC_KEY_PASSWORD=${{ secrets.WIN_CERT_PASSWORD }}" >> $GITHUB_ENV
+
       - name: Build & package (Windows)
         run: npm run dist -- --win
         env:
-          # Disable auto code-signing discovery; signing only happens when secrets are set
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
-          # Code-signing — optional; omit for unsigned builds (SmartScreen warning)
-          CSC_LINK: ${{ secrets.WIN_CERT_PFX }}
-          CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
 
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
