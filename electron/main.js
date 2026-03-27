@@ -38,6 +38,9 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      // In dev mode the renderer is served from http://localhost:5173.
+      // Without this, Electron blocks file:// URLs (preview frames) as cross-origin.
+      webSecurity: !isDev,
     },
   });
 

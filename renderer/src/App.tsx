@@ -15,6 +15,7 @@ function App() {
   const [inputPath, setInputPath] = useState<string | null>(null);
   const [outputPath, setOutputPath] = useState<string | null>(null);
   const [previewFrameUrl, setPreviewFrameUrl] = useState<string | null>(null);
+  const [previewClipUrl, setPreviewClipUrl] = useState<string | null>(null);
   const [videoMeta, setVideoMeta] = useState<{ width: number; height: number; fps: number; duration: number } | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
   const [containerSize, setContainerSize] = useState({ w: 800, h: 600 });
@@ -47,8 +48,11 @@ function App() {
     const path = await window.electronAPI.openFile();
     if (!path) return;
     setInputPath(path);
-    setOutputPath(null);
+    // Auto-derive default output path alongside the input file
+    const dir = path.split(/[\\/]/).slice(0, -1).join('/');
+    setOutputPath(dir + '/' + defaultOutputName(path));
     setPreviewFrameUrl(null);
+    setPreviewClipUrl(null);
     setVideoMeta(null);
     setAppState('loaded');
     // Request preview frame extraction from the backend
@@ -89,24 +93,31 @@ function App() {
   }, [outputPath]);
 
   const handleExport = useCallback(async () => {
-    if (!inputPath || !outputPath) return;
+    if (!inputPath) return;
+    let out = outputPath;
+    if (!out) {
+      out = await window.electronAPI.saveFile(defaultOutputName(inputPath));
+      if (!out) return;
+      setOutputPath(out);
+    }
     const videoROI = normalizeCoordinates(canvasROI.x, canvasROI.y, canvasROI.w, canvasROI.h, canvasScale);
-    const payload: JobConfig = { inputPath, outputPath, roi: videoROI, method, mode: 'full', radius, kernelSize, color, dx, dy };
+    const payload: JobConfig = { inputPath, outputPath: out, roi: videoROI, method, mode: 'full', radius, kernelSize, color, dx, dy };
     setProgress(0); setStateLabel(''); setAppState('processing');
     registerJobListeners();
     await window.electronAPI.startJob(payload);
   }, [inputPath, outputPath, canvasROI, canvasScale, method, radius, kernelSize, color, dx, dy, registerJobListeners]);
 
   const handlePreview = useCallback(async () => {
-    if (!inputPath || !outputPath) return;
+    if (!inputPath) return;
     const videoROI = normalizeCoordinates(canvasROI.x, canvasROI.y, canvasROI.w, canvasROI.h, canvasScale);
-    const payload: JobConfig = { inputPath, outputPath, roi: videoROI, method, mode: 'preview', radius, kernelSize, color, dx, dy };
+    // outputPath is passed as placeholder; backend generates its own temp file for the preview clip
+    const payload: JobConfig = { inputPath, outputPath: outputPath ?? '/dev/null', roi: videoROI, method, mode: 'preview', radius, kernelSize, color, dx, dy };
     setProgress(0); setStateLabel('Generating 3s preview…'); setAppState('processing');
     window.electronAPI.removeJobListeners();
     window.electronAPI.onJobProgress(setProgress);
     window.electronAPI.onJobState(setStateLabel);
-    window.electronAPI.onPreviewReady((path: string) => {
-      setPreviewFrameUrl(`file://${path}`);
+    window.electronAPI.onPreviewReady((clipPath: string) => {
+      setPreviewClipUrl(`file://${clipPath}`);
       setAppState('loaded');
       window.electronAPI.removeJobListeners();
     });
@@ -131,7 +142,7 @@ function App() {
 
   const isLoaded = appState === 'loaded';
   const isProcessing = appState === 'processing';
-  const canExport = isLoaded && !!inputPath && !!outputPath;
+  const canExport = isLoaded && !!inputPath;
 
   return (
     <div style={{ display: 'flex', width: '100%', height: '100%', background: '#18181b' }}>
@@ -184,8 +195,16 @@ function App() {
       <div ref={canvasContainerRef} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#000', overflow: 'hidden', position: 'relative' }}>
         {appState === 'empty' && <EmptyState onSelectFile={handleSelectFile} />}
 
-        {appState !== 'empty' && previewFrameUrl && (
+        {appState !== 'empty' && previewFrameUrl && !previewClipUrl && (
           <VideoCanvas previewSrc={previewFrameUrl} containerWidth={containerSize.w} containerHeight={containerSize.h} onScaleChange={setCanvasScale} onROIChange={setCanvasROI} />
+        )}
+
+        {previewClipUrl && (
+          <div style={{ position: 'absolute', inset: 0, background: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video src={previewClipUrl} autoPlay controls loop style={{ maxWidth: '100%', maxHeight: 'calc(100% - 44px)', outline: 'none' }} />
+            <button onClick={() => setPreviewClipUrl(null)} style={{ marginTop: 10, background: 'rgba(39,39,42,0.9)', border: '1px solid #3f3f46', borderRadius: 6, padding: '5px 16px', color: '#d4d4d8', fontSize: 11, cursor: 'pointer' }}>Close preview</button>
+          </div>
         )}
 
         {appState !== 'empty' && !previewFrameUrl && (
