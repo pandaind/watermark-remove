@@ -77,12 +77,16 @@ export default function VideoCanvas({
   }, [image]);
 
   const emitROI = useCallback((node: Konva.Rect) => {
-    const r = {
-      x: Math.round(node.x()),
-      y: Math.round(node.y()),
-      w: Math.round(node.width() * node.scaleX()),
-      h: Math.round(node.height() * node.scaleY()),
-    };
+    // Normalize scale back to 1 and store real pixel dimensions on the node.
+    // Without this, Konva keeps accumulated scaleX/Y and on the next render
+    // it multiplies again, causing the box to auto-resize.
+    const newW = Math.round(node.width() * node.scaleX());
+    const newH = Math.round(node.height() * node.scaleY());
+    node.scaleX(1);
+    node.scaleY(1);
+    node.width(newW);
+    node.height(newH);
+    const r = { x: Math.round(node.x()), y: Math.round(node.y()), w: newW, h: newH };
     setRect({ x: r.x, y: r.y, width: r.w, height: r.h });
     onROIChange(r);
   }, [onROIChange]);
@@ -147,11 +151,19 @@ export default function VideoCanvas({
               anchorSize={8}
               anchorCornerRadius={1}
               keepRatio={false}
-              boundBoxFunc={(_, newBox) => ({
-                ...newBox,
-                width: Math.max(20, newBox.width),
-                height: Math.max(20, newBox.height),
-              })}
+              boundBoxFunc={(_, newBox) => {
+                const b = {
+                  ...newBox,
+                  width: Math.max(20, newBox.width),
+                  height: Math.max(20, newBox.height),
+                };
+                // Clamp to stage boundaries
+                if (b.x < 0) { b.width += b.x; b.x = 0; }
+                if (b.y < 0) { b.height += b.y; b.y = 0; }
+                if (b.x + b.width > stageW) b.width = stageW - b.x;
+                if (b.y + b.height > stageH) b.height = stageH - b.y;
+                return b;
+              }}
             />
           )}
         </Layer>

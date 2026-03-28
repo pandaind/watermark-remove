@@ -15,7 +15,7 @@ test.describe('Sidebar — output path', () => {
     await expect(page.getByTestId('browse-output')).not.toBeVisible();
   });
 
-  test('Export button is disabled until both paths are set', async ({ page, electronApp }) => {
+  test('Export button is enabled as soon as a video is selected', async ({ page, electronApp }) => {
     // Simulate a file being selected via IPC mock
     await electronApp.evaluate(({ ipcMain }) => {
       ipcMain.removeHandler('dialog:openFile');
@@ -34,16 +34,21 @@ test.describe('Sidebar — output path', () => {
       ipcMain.handle('dialog:saveFile', async () => '/fake/output.mp4');
     });
 
-    // Click "Click to browse" — triggers openFile
-    await page.getByTestId('empty-state').click();
+    // Load a video from idle state or re-load via Change video
+    const isIdle = await page.locator('[data-testid="empty-state"]').isVisible();
+    if (isIdle) {
+      await page.getByTestId('empty-state').click();
+    } else {
+      await page.getByTestId('change-video').click();
+    }
 
-    // State transitions to 'loaded', Export button appears but is disabled
+    // Export button becomes enabled immediately — output path is auto-derived
+    // from the input filename (no manual Browse step required)
     await expect(page.getByTestId('btn-export')).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByTestId('btn-export')).toBeDisabled();
+    await expect(page.getByTestId('btn-export')).toBeEnabled({ timeout: 5_000 });
 
-    // Click Browse to set output path
+    // Browse still works to change the output path
     await page.getByTestId('browse-output').click();
-    // After output path set, Export becomes enabled
     await expect(page.getByTestId('btn-export')).toBeEnabled({ timeout: 5_000 });
   });
 });
@@ -91,7 +96,8 @@ test.describe('Error panel', () => {
       await expect(page.getByTestId('btn-export')).toBeVisible({ timeout: 5_000 });
     }
 
-    // handleSelectFile resets outputPath to null on every load, so always re-set it
+    // Export is already enabled from file load (output path is auto-derived).
+    // Clicking Browse just lets the user change the output location.
     await page.getByTestId('browse-output').click();
     await expect(page.getByTestId('btn-export')).toBeEnabled({ timeout: 5_000 });
 

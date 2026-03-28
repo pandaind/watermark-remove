@@ -57,8 +57,14 @@ test.describe('Watermark removal — real pipeline', () => {
     );
 
     // ── 2. Load the video ─────────────────────────────────────────────────────
-    await expect(page.getByTestId('empty-state')).toBeVisible({ timeout: 5_000 });
-    await page.getByTestId('empty-state').click();
+    // The shared Electron instance may still be in a loaded state from a
+    // previous test file. Handle both idle and non-idle gracefully.
+    const isIdle = await page.locator('[data-testid="empty-state"]').isVisible();
+    if (isIdle) {
+      await page.getByTestId('empty-state').click();
+    } else {
+      await page.getByTestId('change-video').click();
+    }
 
     // The sidebar switches to loaded state; Export button becomes visible
     await expect(page.getByTestId('btn-export')).toBeVisible({ timeout: 10_000 });
